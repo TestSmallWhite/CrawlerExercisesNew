@@ -34,7 +34,7 @@
 
 """
 
-import re, requests,json,os, time
+import re, requests,json,os, time, sys, io
 from bs4 import BeautifulSoup
 
 proxies = {"http": "http://proxy.tencent.com:8080",
@@ -49,14 +49,15 @@ class getPic(object):
         self.questionURL = questionURL  #问题的url
         self.savePath = savePath    #保存地址
         self.count = count  #想下载的数据
-        self.answerCount = 0 #问题总回答数，默认下载全部
+        self.answerCount = 0 #问题总回答数
 
     def getQuestionAnswerCount(self):
         """
         获取该问题回答数
         :return: 返回该问题回答数
         """
-        req = requests.get(url=self.questionURL, proxies=proxies, headers=headers).text
+        #req = requests.get(url=self.questionURL, proxies=proxies, headers=headers).text
+        req = requests.get(url=self.questionURL, headers=headers).text
 
         bf = BeautifulSoup(req, features="html.parser").find("h4", class_="List-headerText")
 
@@ -82,12 +83,13 @@ class getPic(object):
             #知乎一次最大只返回10个回答，所以循环次数 = 下载数 / 10 + 1
             #如果self.count=0,表示下载全部回答
             if self.count == 0:
-                xunhuanCount = int(self.answerCount / 10) + 1
-            else:
-                xunhuanCount = int(self.count / 10) + 1
+                self.count = self.answerCount
 
             #位移数
             offset = 0
+
+            #控制下载次数，
+            is_finish = 0
 
             #处理知乎api
             #先拿到问题的id
@@ -99,14 +101,21 @@ class getPic(object):
             #用来匿名回答数+1
             niMingCount = 0
 
-            for num in range(0, xunhuanCount):
+            for num in range(0, int(self.answerCount)):
+                #print(urlAhead + str(offset) + urlBehind)
 
-                dataJson = requests.get(url=urlAhead + str(offset) + urlBehind, proxies=proxies, headers=headers).text
+                # dataJson = requests.get(url=urlAhead + str(offset) + urlBehind, proxies=proxies, headers=headers).text
+                dataJson = requests.get(url=urlAhead + str(offset) + urlBehind, headers=headers).text
 
                 #把数据变成dict类型
                 dataJson = json.loads(dataJson)
 
                 for x in range(dataJson["data"].__len__()):
+                    #判断是否已经下载了指定的数量了
+                    if is_finish == self.count:
+                        print("已经下载完毕指定数量的回答了")
+                        return
+
                     #过滤下content，如果没有图片就跳过
                     url = findPicUrl.findall(dataJson["data"][x]["content"])
 
@@ -125,7 +134,10 @@ class getPic(object):
                     #print(path)
 
                     #先创建文件夹
-                    os.makedirs(path)
+                    if os.path.exists(path):
+                        pass
+                    else:
+                        os.makedirs(path)
 
                     with open(path + "\回答者信息.txt", "w+") as f:
                         f.write(
@@ -142,7 +154,8 @@ class getPic(object):
                     #下载头像
                     with open(path + "\头像.jpg", "wb") as f:
                         headPicUrl = re.sub(findSize, ".jpg", dataJson["data"][x]["author"]["avatar_url"])
-                        f.write(requests.get(url=headPicUrl, proxies=proxies, headers=headers).content)
+                        #f.write(requests.get(url=headPicUrl, proxies=proxies, headers=headers).content)
+                        f.write(requests.get(url=headPicUrl, headers=headers).content)
 
                     time.sleep(2)
 
@@ -171,11 +184,15 @@ class getPic(object):
                         is_duplication.append(answerPicUrl)
 
                         with open(path + "\\" + str(int(time.time())) + ".jpg", "wb") as f:
-                            f.write(requests.get(url=answerPicUrl, proxies=proxies, headers=headers).content)
+                            # f.write(requests.get(url=answerPicUrl, proxies=proxies, headers=headers).content)
+                            f.write(requests.get(url=answerPicUrl, headers=headers).content)
 
                         time.sleep(2)
 
-                print("下载完毕一个回答")
+                    print("下载完毕一个回答")
+
+                    is_finish = is_finish + 1
+
                 is_duplication = []
 
                 offset = offset + 10
@@ -194,8 +211,8 @@ class getPic(object):
         return re.sub(r"[\/\\\:\*\?\"\<\>\|]", "_", str)
 
 if __name__ == '__main__':
-    gb = getPic("https://www.zhihu.com/question/26297181", "f:\\",5)
+    gb = getPic("https://www.zhihu.com/question/53001985", "f:\\",0)
     gb.downloadAnswer()
-    print("下载完毕")
+    #print("下载完毕")
 
 
