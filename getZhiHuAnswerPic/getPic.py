@@ -34,7 +34,7 @@
 
 """
 
-import re, requests,json,os, time, sys, io
+import re, requests,json,os, time, sys
 from bs4 import BeautifulSoup
 
 proxies = {"http": "http://proxy.tencent.com:8080",
